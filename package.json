@@ -1,24 +1,39 @@
 {
   "name": "speech-synthesis",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Speech Synthesis polyfill",
-  "keywords": ["speech", "synthesis", "polyfill"],
-  "authors": ["Jan Antala <hello@janantala.com>"],
+  "keywords": [
+    "speech",
+    "synthesis",
+    "polyfill"
+  ],
+  "authors": [
+    "Jan Antala <hello@janantala.com>"
+  ],
   "license": "MIT",
   "homepage": "https://github.com/janantala/speech-synthesis",
   "main": "./src/polyfill.js",
+  "scripts": {
+    "start": "webpack-dev-server --config webpack/webpack.dev.js",
+    "webpack": "NOCE_ENV=production webpack -p --bail --config webpack/webpack.prod.js"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/janantala/speech-synthesis.git"
   },
   "devDependencies": {
-    "gulp": "~3.6.0",
-    "gulp-util": "~2.2.9",
-    "gulp-uglify": "~0.3.0",
-    "gulp-header": "~1.0.2",
-    "gulp-concat": "~2.2.0",
-    "gulp-rename": "~1.2.0",
-    "gulp-jshint": "~1.6.1",
-    "gulp-karma": "~0.0.4"
+    "babel-core": "^6.26.0",
+    "babel-loader": "^7.1.2",
+    "babel-preset-env": "^1.6.1",
+    "copy-webpack-plugin": "^4.1.1",
+    "html-loader": "^0.5.1",
+    "html-webpack-plugin": "^2.30.1",
+    "source-map-loader": "^0.2.2",
+    "webpack": "^3.6.0",
+    "webpack-dev-server": "^2.9.1",
+    "webpack-merge": "^4.1.0"
+  },
+  "dependencies": {
+    "eventemitter3": "^2.0.3"
   }
 }

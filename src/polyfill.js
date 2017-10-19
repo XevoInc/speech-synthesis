@@ -1,5 +1,21 @@
+/*
+  Note: If you use VoiceRSS service, put your apikey as src/private_config.js like the following:
+
+  const tts_config = {
+    'APIKEY' : '<YOUR_API_KEY_HERE>',
+    'LIMIT' : 10000,
+    'LANG' : 'en-US'
+  };
+  module.exports = tts_config;
+*/
+
+var EventEmitter = require('eventemitter3');
+var tts_config = require('./private_config.js');
+
 (function(window, document){
   'use strict';
+
+  var LIMIT = tts_config.LIMIT || 100;
 
   var splitText = function(text, delimeters, limit){
     var sentences = [];
@@ -63,6 +79,106 @@
     return result;
   };
 
+  var audioContext = (function() {
+    var AudioContext = window.AudioContext || window.webkitAudioContext;
+    return new AudioContext();
+  })();
+
+  var inherits = function(ctor, superCtor) {
+    ctor.super_ = superCtor;
+    ctor.prototype = Object.create(superCtor.prototype, {
+      constructor: {
+        value: ctor,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      }
+    });
+  };
+
+  // Audio polyfill by Web Audio API
+  var AudioPolyfill = function(customAudioLoader) {
+    EventEmitter.call(this);
+
+    this.src;
+    this.volume;
+    this.playbackRate;
+    this.audioSource;
+
+    var that = this;
+
+    var defaultAudioLoader = function(url, onload, onerror) {
+      var request = new XMLHttpRequest();
+      request.open('GET', url, true);
+      request.responseType = 'arraybuffer';
+
+      request.onload = function() {
+        audioContext.decodeAudioData(request.response, function(buffer) {
+          onload(buffer);
+        }, function() {
+          console.warn("decodeAudioData() failed. Bad request maybe.");
+          onerror();
+        })
+      };
+
+      request.onerror = onerror;
+
+      request.send();      
+    }
+
+    this.play = function() {
+      if(that.src) {
+        var loader = customAudioLoader || defaultAudioLoader;
+        loader(that.src, function(buffer) {
+          that.audioSource = audioContext.createBufferSource();
+          that.audioSource.buffer = buffer;
+          that.audioSource.connect(audioContext.destination);
+          that.audioSource.onended = function() {
+            that.audioSource = null;
+            that.emit('ended');
+          };
+          that.audioSource.start();
+          that.emit('play');
+        }, function() {
+          console.warn('request error.');
+          that.emit('error');
+        })
+      } else {
+          console.warn('Audio.src not set.');
+          that.emit('error');
+      }
+    };
+
+    this.stop = function() {
+      if (that.audioSource) {
+        that.audioSource.stop();
+      }
+    }
+
+    this.pause = function() {
+      if (audioContext.state === 'running') {
+        audioContext.suspend().then(function() {
+          that.emit('pause');
+        });
+      }
+    }
+
+    this.resume = function() {
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().then(function() {
+          that.emit('play');
+        });
+      }
+    };
+
+    this._getAudioSourceNode = function() {
+      return that.audioSource;
+    }
+
+    return this;
+  };
+  inherits(AudioPolyfill, EventEmitter);
+
   var SpeechSynthesisUtterancePolyfill = function(text){
 
     /**
@@ -76,7 +192,7 @@
      */
     
     this.text = text || '';
-    this.lang = document.documentElement.lang || 'en-US';
+    this.lang = tts_config.LANG || document.documentElement.lang || 'en-US';
     this.volume = 1.0; // 0 to 1
     this.rate = 1.0; // 0.1 to 10
     // These attributes are not supported:
@@ -97,7 +213,7 @@
     this.onboundary = undefined;
 
 
-    this.corsProxyServer = 'http://www.corsproxy.com/';
+    this.corsProxyServer = 'http://www.corsproxy.com/'; // is down!
 
     /**
      * Private parts
@@ -113,21 +229,24 @@
       name: undefined
     };
 
+    var audioContext;
+
     var updateElapsedTime = function(){
       endTime = new Date().getTime();
       event.elapsedTime = (endTime - (startTime || endTime)) / 1000;
     };
 
-    var getAudioUrl = function(corsProxyServer, text, lang){
-      return [corsProxyServer, 'translate.google.com/translate_tts?ie=UTF-8&q=', encodeURIComponent(text) , '&tl=', lang].join('');
+    var getAudioUrl = function(corsProxyServer, text, lang, apikey){
+      // return [corsProxyServer, 'translate.google.com/translate_tts?ie=UTF-8&q=', encodeURIComponent(text) , '&tl=', lang].join('');
+      return ['http://api.voicerss.org/?key=', tts_config.APIKEY, '&c=WAV&f=16khz_16bit_mono&src=', encodeURIComponent(text), '&hl=', lang].join('');      
     };
 
     this._initAudio = function(){
       var sentences = [];
       that._ended = false;
-      var audio = new Audio();
+      var audio = new AudioPolyfill(); // new Audio();
 
-      audio.addEventListener('play', function() {
+      audio.on('play', function() {
         updateElapsedTime();
 
         if (! startTime) {
@@ -143,7 +262,7 @@
         }
       }, false);
 
-      audio.addEventListener('ended', function() {
+      audio.on('ended', function() {
 
         if (sentences.length) {
           var audioURL = getAudioUrl(that.corsProxyServer, sentences.shift(), that.lang);
@@ -160,7 +279,7 @@
         
       }, false);
 
-      audio.addEventListener('error', function() {
+      audio.on('error', function() {
         updateElapsedTime();
         that._ended = true;
         if (that.onerror) {
@@ -168,7 +287,7 @@
         }
       }, false);
 
-      audio.addEventListener('pause', function() {
+      audio.on('pause', function() {
         if (!that._ended) {
           updateElapsedTime();
           if (that.onpause) {
@@ -180,7 +299,6 @@
       // Google Translate limit is 100 characters, we need to split longer text
       // we use the multiple delimeters
 
-      var LIMIT = 100;
       if (that.text.length > LIMIT) {
 
         sentences = splitText(that.text, ['.', '!', '?', ':', ';', ',', ' '], LIMIT);
@@ -222,7 +340,7 @@
      */
 
     var that = this;
-    var audio = new Audio();
+    var audio = new AudioPolyfill();
     var utteranceQueue = [];
 
     var playNext = function(utteranceQueue){
@@ -245,23 +363,23 @@
 
     var attachAudioEvents = function(audio, SpeechSynthesisUtterancePolyfill) {
 
-      audio.addEventListener('play', function() {
+      audio.on('play', function() {
         // console.log('SpeechSynthesis audio play');
       }, false);
 
-      audio.addEventListener('ended', function() {
+      audio.on('ended', function() {
         // console.log('SpeechSynthesis audio ended');
         if (SpeechSynthesisUtterancePolyfill._ended) {
           playNext(utteranceQueue);
         }
       }, false);
 
-      audio.addEventListener('error', function() {
+      audio.on('error', function() {
         // console.log('SpeechSynthesis audio error');
         playNext(utteranceQueue);
       }, false);
 
-      audio.addEventListener('pause', function() {
+      audio.on('pause', function() {
         // console.log('SpeechSynthesis audio pause');
       }, false);
     };
@@ -280,9 +398,10 @@
     };
 
     var cancel = function(){
+      audio.stop();
       audio.src = '';
       audio = undefined;
-      audio = new Audio();
+      audio = new AudioPolyfill(); // new Audio();
 
       that.pending = false;
       that.speaking = false;
@@ -299,7 +418,11 @@
 
     var resume = function(){
       if (audio.src) {
-        audio.play();
+        if (that.paused) {
+          audio.resume();
+        } else if (!that.speaking){
+          audio.play();
+        }
         that.speaking = true;
       }
       else {
