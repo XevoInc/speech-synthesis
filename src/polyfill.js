@@ -11,6 +11,10 @@
 
 var EventEmitter = require('eventemitter3');
 var tts_config = require('./private_config.js');
+var p5 = require('p5');
+import 'p5/lib/addons/p5.sound';
+
+var DEBUG = true;
 
 (function(window, document){
   'use strict';
@@ -79,11 +83,6 @@ var tts_config = require('./private_config.js');
     return result;
   };
 
-  var audioContext = (function() {
-    var AudioContext = window.AudioContext || window.webkitAudioContext;
-    return new AudioContext();
-  })();
-
   var inherits = function(ctor, superCtor) {
     ctor.super_ = superCtor;
     ctor.prototype = Object.create(superCtor.prototype, {
@@ -97,83 +96,89 @@ var tts_config = require('./private_config.js');
   };
 
   // Audio polyfill by Web Audio API
-  var AudioPolyfill = function(customAudioLoader) {
+  var AudioPolyfill = function() {
     EventEmitter.call(this);
+
+    this.soundFile; 
+    this.onload;
 
     this.src;
     this.volume;
     this.playbackRate;
-    this.audioSource;
 
     var that = this;
 
-    var defaultAudioLoader = function(url, onload, onerror) {
-      var request = new XMLHttpRequest();
-      request.open('GET', url, true);
-      request.responseType = 'arraybuffer';
-
-      request.onload = function() {
-        audioContext.decodeAudioData(request.response, function(buffer) {
-          onload(buffer);
-        }, function() {
-          console.warn("decodeAudioData() failed. Bad request maybe.");
-          onerror();
-        })
-      };
-
-      request.onerror = onerror;
-
-      request.send();      
-    }
-
     this.play = function() {
       if(that.src) {
-        var loader = customAudioLoader || defaultAudioLoader;
-        loader(that.src, function(buffer) {
-          that.audioSource = audioContext.createBufferSource();
-          that.audioSource.buffer = buffer;
-          that.audioSource.connect(audioContext.destination);
-          that.audioSource.onended = function() {
-            that.audioSource = null;
-            that.emit('ended');
-          };
-          that.audioSource.start();
-          that.emit('play');
-        }, function() {
-          console.warn('request error.');
-          that.emit('error');
-        })
+        that.onload = function() {
+            that.soundFile.play();
+            that.emit('play', that.soundFile);          
+        }
+
+        that.soundFile = new p5.SoundFile(that.src, function() {
+          that.soundFile.onended(function() {
+            if (! that.soundFile.isPaused()) {
+              that.emit('ended', that.soundFile);
+              that.soundFile = null;
+            }
+          });
+
+          if (that.onload) {
+            that.onload();
+          }
+        }, function(error) {
+          console.warn('request error: ' + error);
+          that.emit('error', error);
+        });
       } else {
-          console.warn('Audio.src not set.');
-          that.emit('error');
+        console.warn('Audio source not set.');
+        that.emit('error', 'No src');
       }
     };
 
     this.stop = function() {
-      if (that.audioSource) {
-        that.audioSource.stop();
+      that.onload = null;
+
+      if (that.soundFile) {
+        that.soundFile.stop();
       }
     }
 
     this.pause = function() {
-      if (audioContext.state === 'running') {
-        audioContext.suspend().then(function() {
-          that.emit('pause');
-        });
+      if (that.soundFile) {
+        if (that.soundFile.isPaused()) {
+          // do nothing
+        } else if (that.soundFile.isPlaying()) {
+          that.soundFile.pause();
+          that.emit('pause', that.soundFile);
+        } else if (! that.soundFile.isLoaded()) {
+          that.onload = function() {
+            that.emit('pause', that.soundFile);
+          }
+        }
       }
     }
 
     this.resume = function() {
-      if (audioContext.state === 'suspended') {
-        audioContext.resume().then(function() {
-          that.emit('play');
-        });
+      if (that.soundFile) {
+        if (that.soundFile.isPlaying()) {
+          // do nothing
+        } else if (that.soundFile.isPaused()) {
+          that.soundFile.play();
+          that.emit('resume', that.soundFile);
+        } else {
+          // paused & resumed while loading
+          that.onload = function() {
+              that.soundFile.play();
+              that.emit('play', that.soundFile);          
+          }
+        }
       }
     };
 
-    this._getAudioSourceNode = function() {
-      return that.audioSource;
-    }
+    this._getSoundFile = function() {
+      return that.soundFile;
+    };
 
     return this;
   };
@@ -229,8 +234,6 @@ var tts_config = require('./private_config.js');
       name: undefined
     };
 
-    var audioContext;
-
     var updateElapsedTime = function(){
       endTime = new Date().getTime();
       event.elapsedTime = (endTime - (startTime || endTime)) / 1000;
@@ -252,15 +255,21 @@ var tts_config = require('./private_config.js');
         if (! startTime) {
           startTime = new Date().getTime();
           if (that.onstart) {
-            that.onstart(event);
+            that.onstart(event, audio._getSoundFile());
           }
         }
         else {
           if (that.onresume) {
-            that.onresume(event);
+            that.onresume(event, audio._getSoundFile());
           }
         }
-      }, false);
+      });
+
+      audio.on('resume', function() {
+        if (that.onresume) {
+          that.onresume(event, audio._getSoundFile());
+        }
+      });
 
       audio.on('ended', function() {
 
@@ -273,11 +282,10 @@ var tts_config = require('./private_config.js');
           updateElapsedTime();
           that._ended = true;
           if (that.onend) {
-            that.onend(event);
+            that.onend(event, audio._getSoundFile());
           }
         }
-        
-      }, false);
+      });
 
       audio.on('error', function() {
         updateElapsedTime();
@@ -285,7 +293,7 @@ var tts_config = require('./private_config.js');
         if (that.onerror) {
           that.onerror(event);
         }
-      }, false);
+      });
 
       audio.on('pause', function() {
         if (!that._ended) {
@@ -294,7 +302,7 @@ var tts_config = require('./private_config.js');
             that.onpause(event);
           }
         }
-      }, false);
+      });
 
       // Google Translate limit is 100 characters, we need to split longer text
       // we use the multiple delimeters
@@ -364,24 +372,28 @@ var tts_config = require('./private_config.js');
     var attachAudioEvents = function(audio, SpeechSynthesisUtterancePolyfill) {
 
       audio.on('play', function() {
-        // console.log('SpeechSynthesis audio play');
-      }, false);
+        DEBUG && console.log('SpeechSynthesis audio play');
+      });
 
       audio.on('ended', function() {
-        // console.log('SpeechSynthesis audio ended');
+        DEBUG && console.log('SpeechSynthesis audio ended');
         if (SpeechSynthesisUtterancePolyfill._ended) {
           playNext(utteranceQueue);
         }
-      }, false);
+      });
 
       audio.on('error', function() {
-        // console.log('SpeechSynthesis audio error');
+        DEBUG && console.log('SpeechSynthesis audio error');
         playNext(utteranceQueue);
-      }, false);
+      });
 
       audio.on('pause', function() {
-        // console.log('SpeechSynthesis audio pause');
-      }, false);
+        DEBUG && console.log('SpeechSynthesis audio paused');
+      });
+
+      audio.on('resume', function() {
+        DEBUG && console.log('SpeechSynthesis audio resumed');
+      });
     };
 
     var speak = function(SpeechSynthesisUtterancePolyfill){
