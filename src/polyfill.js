@@ -10,9 +10,19 @@
 */
 
 var EventEmitter = require('eventemitter3');
-var tts_config = require('./private_config.js');
 var p5 = require('p5');
 import 'p5/lib/addons/p5.sound';
+
+var tts_config = window.tts_config || {
+    'APIKEY' : '<YOUR_API_KEY_HERE>',
+    'LIMIT' : 10000,
+    'LANG' : 'en-US'
+};
+
+try {
+  tts_config = require('./private_config');
+} catch (e) {
+}
 
 var DEBUG = true;
 
