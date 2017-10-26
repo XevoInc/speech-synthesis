@@ -26,6 +26,8 @@ try {
 
 var DEBUG = true;
 
+var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
+
 (function(window, document){
   'use strict';
 
@@ -251,7 +253,7 @@ var DEBUG = true;
 
     var getAudioUrl = function(corsProxyServer, text, lang, apikey){
       // return [corsProxyServer, 'translate.google.com/translate_tts?ie=UTF-8&q=', encodeURIComponent(text) , '&tl=', lang].join('');
-      return ['http://api.voicerss.org/?key=', tts_config.APIKEY, '&c=WAV&f=16khz_16bit_mono&src=', encodeURIComponent(text), '&hl=', lang].join('');      
+      return [protocol, '//api.voicerss.org/?key=', tts_config.APIKEY, '&c=WAV&f=16khz_16bit_mono&src=', encodeURIComponent(text), '&hl=', lang].join('');      
     };
 
     this._initAudio = function(){
