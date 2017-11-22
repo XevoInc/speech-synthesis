@@ -26,7 +26,7 @@ try {
 
 var DEBUG = true;
 
-var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
+var protocol = 'https:';
 
 (function(window, document){
   'use strict';
@@ -253,7 +253,10 @@ var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
 
     var getAudioUrl = function(corsProxyServer, text, lang, apikey){
       // return [corsProxyServer, 'translate.google.com/translate_tts?ie=UTF-8&q=', encodeURIComponent(text) , '&tl=', lang].join('');
-      return [protocol, '//api.voicerss.org/?key=', tts_config.APIKEY, '&c=WAV&f=16khz_16bit_mono&src=', encodeURIComponent(text), '&hl=', lang].join('');      
+      // VoiceRSS
+      // return [protocol, '//api.voicerss.org/?key=', tts_config.APIKEY, '&c=WAV&f=16khz_16bit_mono&src=', encodeURIComponent(text), '&hl=', lang].join('');
+      // Watson
+      return [protocol, '//', tts_config.BLUEMIX_CLIENT_ID, ':', tts_config.BLUEMIX_PASSWORD, '@stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fogg', '&text=', encodeURIComponent(text)].join('');
     };
 
     this._initAudio = function(){
