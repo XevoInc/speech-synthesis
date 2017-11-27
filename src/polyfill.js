@@ -279,7 +279,7 @@ var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
       // VoiceRSS
       // return [protocol, '//api.voicerss.org/?key=', tts_config.APIKEY, '&c=WAV&f=16khz_16bit_mono&src=', encodeURIComponent(text), '&hl=', lang].join('');
       // Watson
-      return ['https:', '//stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fogg', '&text=', encodeURIComponent(text)].join('');
+      return ['https:', '//stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fogg', '&host=', window.location.host, '&text=', encodeURIComponent(text)].join('');
     };
 
     this._initAudio = function () {
