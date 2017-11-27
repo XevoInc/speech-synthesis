@@ -20,7 +20,7 @@ module.exports = merge(baseConfig, {
   ],
   devServer: {
     headers: { "Access-Control-Allow-Origin": "*" },
-    host: process.env.HOST || '0.0.0.0',
+    host: process.env.HOST || 'localhost',
     disableHostCheck: true,
     contentBase: './public',
     inline: true,

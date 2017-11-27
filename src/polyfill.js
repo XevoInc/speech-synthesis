@@ -4,7 +4,9 @@
   const tts_config = {
     'APIKEY' : '<YOUR_API_KEY_HERE>',
     'LIMIT' : 10000,
-    'LANG' : 'en-US'
+    'LANG' : 'en-US',
+    'APIID' : <API_ID_HERE>,
+    'APIPASS' : <API_PASSWD_HERE>,
   };
   module.exports = tts_config;
 */
@@ -14,9 +16,9 @@ var p5 = require('p5');
 import 'p5/lib/addons/p5.sound';
 
 var tts_config = window.tts_config || {
-    'APIKEY' : '<YOUR_API_KEY_HERE>',
-    'LIMIT' : 10000,
-    'LANG' : 'en-US'
+  'APIKEY': '<YOUR_API_KEY_HERE>',
+  'LIMIT': 10000,
+  'LANG': 'en-US'
 };
 
 try {
@@ -26,25 +28,25 @@ try {
 
 var DEBUG = true;
 
-var protocol = 'https:';
+var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
 
-(function(window, document){
+(function (window, document) {
   'use strict';
 
   var LIMIT = tts_config.LIMIT || 100;
 
-  var splitText = function(text, delimeters, limit){
+  var splitText = function (text, delimeters, limit) {
     var sentences = [];
 
     // split text by multiple delimeters
-    var reduce = function(text, index) {
+    var reduce = function (text, index) {
       if (delimeters[index] && text.trim().length) {
 
         if (text.indexOf(delimeters[index]) > -1) {
 
           var s = 1;
           var splitted = text.split(delimeters[index]);
-          splitted.forEach(function(words){
+          splitted.forEach(function (words) {
             if (words.length) {
               var suffix = '';
               if (s != splitted.length) {
@@ -75,13 +77,13 @@ var protocol = 'https:';
         }
       }
     };
-    
+
     reduce(text, 0);
 
     var result = [];
     // merge short sentences
-    sentences.forEach(function(sentence){
-      if (! result.length) {
+    sentences.forEach(function (sentence) {
+      if (!result.length) {
         result.push(sentence);
       }
       else if (result[result.length - 1].length + sentence.length + 1 <= limit) {
@@ -95,7 +97,7 @@ var protocol = 'https:';
     return result;
   };
 
-  var inherits = function(ctor, superCtor) {
+  var inherits = function (ctor, superCtor) {
     ctor.super_ = superCtor;
     ctor.prototype = Object.create(superCtor.prototype, {
       constructor: {
@@ -108,10 +110,10 @@ var protocol = 'https:';
   };
 
   // Audio polyfill by Web Audio API
-  var AudioPolyfill = function() {
+  var AudioPolyfill = function () {
     EventEmitter.call(this);
 
-    this.soundFile; 
+    this.soundFile;
     this.onload;
 
     this.src;
@@ -120,35 +122,56 @@ var protocol = 'https:';
 
     var that = this;
 
-    this.play = function() {
-      if(that.src) {
-        that.onload = function() {
-            that.soundFile.play();
-            that.emit('play', that.soundFile);          
+    this.play = function () {
+      if (that.src) {
+        that.onload = function () {
+          that.soundFile.play();
+          that.emit('play', that.soundFile);
         }
 
-        that.soundFile = new p5.SoundFile(that.src, function() {
-          that.soundFile.onended(function() {
-            if (! that.soundFile.isPaused()) {
-              that.emit('ended', that.soundFile);
-              that.soundFile = null;
-            }
-          });
-
-          if (that.onload) {
-            that.onload();
-          }
-        }, function(error) {
+        function _onerror(error) {
           console.warn('request error: ' + error);
           that.emit('error', error);
-        });
+        }
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', that.src, true, tts_config.APIID, tts_config.APIPASS);
+        xhr.responseType = 'blob';
+        xhr.withCredentials = true;
+        xhr.setRequestHeader("Accept", "audio/ogg");
+        xhr.onload = function (e) {
+          if (this.status == 200) {
+            // p5.SoundFile can accept blob sound data
+            that.soundFile = new p5.SoundFile(xhr.response, function () {
+              that.soundFile.onended(function () {
+                if (!that.soundFile.isPaused()) {
+                  that.emit('ended', that.soundFile);
+                  that.soundFile = null;
+                }
+              });
+
+              if (that.onload) {
+                that.onload();
+              }
+            }, function (error) {
+              _onerror(error);
+            });
+
+          } else {
+            _onerror(this.status);
+          }
+        };
+
+        xhr.onerror = _onerror('XHR error');
+
+        xhr.send();
       } else {
         console.warn('Audio source not set.');
         that.emit('error', 'No src');
       }
     };
 
-    this.stop = function() {
+    this.stop = function () {
       that.onload = null;
 
       if (that.soundFile) {
@@ -156,22 +179,22 @@ var protocol = 'https:';
       }
     }
 
-    this.pause = function() {
+    this.pause = function () {
       if (that.soundFile) {
         if (that.soundFile.isPaused()) {
           // do nothing
         } else if (that.soundFile.isPlaying()) {
           that.soundFile.pause();
           that.emit('pause', that.soundFile);
-        } else if (! that.soundFile.isLoaded()) {
-          that.onload = function() {
+        } else if (!that.soundFile.isLoaded()) {
+          that.onload = function () {
             that.emit('pause', that.soundFile);
           }
         }
       }
     }
 
-    this.resume = function() {
+    this.resume = function () {
       if (that.soundFile) {
         if (that.soundFile.isPlaying()) {
           // do nothing
@@ -180,15 +203,15 @@ var protocol = 'https:';
           that.emit('resume', that.soundFile);
         } else {
           // paused & resumed while loading
-          that.onload = function() {
-              that.soundFile.play();
-              that.emit('play', that.soundFile);          
+          that.onload = function () {
+            that.soundFile.play();
+            that.emit('play', that.soundFile);
           }
         }
       }
     };
 
-    this._getSoundFile = function() {
+    this._getSoundFile = function () {
       return that.soundFile;
     };
 
@@ -196,7 +219,7 @@ var protocol = 'https:';
   };
   inherits(AudioPolyfill, EventEmitter);
 
-  var SpeechSynthesisUtterancePolyfill = function(text){
+  var SpeechSynthesisUtterancePolyfill = function (text) {
 
     /**
      * Identify the polyfill usage
@@ -207,7 +230,7 @@ var protocol = 'https:';
     /**
      * SpeechSynthesisUtterance Attributes
      */
-    
+
     this.text = text || '';
     this.lang = tts_config.LANG || document.documentElement.lang || 'en-US';
     this.volume = 1.0; // 0 to 1
@@ -219,7 +242,7 @@ var protocol = 'https:';
     /**
      * SpeechSynthesisUtterance Events
      */
-    
+
     this.onstart = undefined;
     this.onend = undefined;
     this.onerror = undefined;
@@ -235,7 +258,7 @@ var protocol = 'https:';
     /**
      * Private parts
      */
-    
+
     var that = this;
 
     var startTime;
@@ -246,28 +269,28 @@ var protocol = 'https:';
       name: undefined
     };
 
-    var updateElapsedTime = function(){
+    var updateElapsedTime = function () {
       endTime = new Date().getTime();
       event.elapsedTime = (endTime - (startTime || endTime)) / 1000;
     };
 
-    var getAudioUrl = function(corsProxyServer, text, lang, apikey){
+    var getAudioUrl = function (corsProxyServer, text, lang, apikey) {
       // return [corsProxyServer, 'translate.google.com/translate_tts?ie=UTF-8&q=', encodeURIComponent(text) , '&tl=', lang].join('');
       // VoiceRSS
       // return [protocol, '//api.voicerss.org/?key=', tts_config.APIKEY, '&c=WAV&f=16khz_16bit_mono&src=', encodeURIComponent(text), '&hl=', lang].join('');
       // Watson
-      return [protocol, '//', tts_config.BLUEMIX_CLIENT_ID, ':', tts_config.BLUEMIX_PASSWORD, '@stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fogg', '&text=', encodeURIComponent(text)].join('');
+      return ['https:', '//stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fogg', '&text=', encodeURIComponent(text)].join('');
     };
 
-    this._initAudio = function(){
+    this._initAudio = function () {
       var sentences = [];
       that._ended = false;
       var audio = new AudioPolyfill(); // new Audio();
 
-      audio.on('play', function() {
+      audio.on('play', function () {
         updateElapsedTime();
 
-        if (! startTime) {
+        if (!startTime) {
           startTime = new Date().getTime();
           if (that.onstart) {
             that.onstart(event, audio._getSoundFile());
@@ -280,13 +303,13 @@ var protocol = 'https:';
         }
       });
 
-      audio.on('resume', function() {
+      audio.on('resume', function () {
         if (that.onresume) {
           that.onresume(event, audio._getSoundFile());
         }
       });
 
-      audio.on('ended', function() {
+      audio.on('ended', function () {
 
         if (sentences.length) {
           var audioURL = getAudioUrl(that.corsProxyServer, sentences.shift(), that.lang);
@@ -302,7 +325,7 @@ var protocol = 'https:';
         }
       });
 
-      audio.on('error', function() {
+      audio.on('error', function () {
         updateElapsedTime();
         that._ended = true;
         if (that.onerror) {
@@ -310,7 +333,7 @@ var protocol = 'https:';
         }
       });
 
-      audio.on('pause', function() {
+      audio.on('pause', function () {
         if (!that._ended) {
           updateElapsedTime();
           if (that.onpause) {
@@ -342,7 +365,7 @@ var protocol = 'https:';
     return this;
   };
 
-  var SpeechSynthesisPolyfill = function(){
+  var SpeechSynthesisPolyfill = function () {
 
     /**
      * Identify the polyfill usage
@@ -366,7 +389,7 @@ var protocol = 'https:';
     var audio = new AudioPolyfill();
     var utteranceQueue = [];
 
-    var playNext = function(utteranceQueue){
+    var playNext = function (utteranceQueue) {
       var SpeechSynthesisUtterancePolyfill = utteranceQueue.shift();
 
       that.speaking = false;
@@ -384,34 +407,34 @@ var protocol = 'https:';
       }
     };
 
-    var attachAudioEvents = function(audio, SpeechSynthesisUtterancePolyfill) {
+    var attachAudioEvents = function (audio, SpeechSynthesisUtterancePolyfill) {
 
-      audio.on('play', function() {
+      audio.on('play', function () {
         DEBUG && console.log('SpeechSynthesis audio play');
       });
 
-      audio.on('ended', function() {
+      audio.on('ended', function () {
         DEBUG && console.log('SpeechSynthesis audio ended');
         if (SpeechSynthesisUtterancePolyfill._ended) {
           playNext(utteranceQueue);
         }
       });
 
-      audio.on('error', function() {
+      audio.on('error', function () {
         DEBUG && console.log('SpeechSynthesis audio error');
         playNext(utteranceQueue);
       });
 
-      audio.on('pause', function() {
+      audio.on('pause', function () {
         DEBUG && console.log('SpeechSynthesis audio paused');
       });
 
-      audio.on('resume', function() {
+      audio.on('resume', function () {
         DEBUG && console.log('SpeechSynthesis audio resumed');
       });
     };
 
-    var speak = function(SpeechSynthesisUtterancePolyfill){
+    var speak = function (SpeechSynthesisUtterancePolyfill) {
 
       that.pending = true;
       utteranceQueue.push(SpeechSynthesisUtterancePolyfill);
@@ -424,7 +447,7 @@ var protocol = 'https:';
       }
     };
 
-    var cancel = function(){
+    var cancel = function () {
       audio.stop();
       audio.src = '';
       audio = undefined;
@@ -437,17 +460,17 @@ var protocol = 'https:';
       playNext(utteranceQueue);
     };
 
-    var pause = function(){
+    var pause = function () {
       audio.pause();
       that.speaking = false;
       that.paused = true;
     };
 
-    var resume = function(){
+    var resume = function () {
       if (audio.src) {
         if (that.paused) {
           audio.resume();
-        } else if (!that.speaking){
+        } else if (!that.speaking) {
           audio.play();
         }
         that.speaking = true;
@@ -460,7 +483,7 @@ var protocol = 'https:';
     };
 
     // Method is not supported
-    var getVoices = function(){
+    var getVoices = function () {
       return [];
     };
 
@@ -479,38 +502,38 @@ var protocol = 'https:';
       'speaking': that.speaking,
       'paused': that.paused,
 
-      'speak': function(SpeechSynthesisUtterancePolyfill){
+      'speak': function (SpeechSynthesisUtterancePolyfill) {
         speak(SpeechSynthesisUtterancePolyfill);
       },
 
-      'cancel': function(){
+      'cancel': function () {
         cancel();
       },
 
-      'pause': function(){
+      'pause': function () {
         pause();
       },
 
-      'resume': function(){
+      'resume': function () {
         resume();
       },
 
-      'getVoices': function(){
+      'getVoices': function () {
         getVoices();
       },
 
     };
   };
 
-  var nativeSpeechSynthesisSupport = function(){
+  var nativeSpeechSynthesisSupport = function () {
     return window.speechSynthesis && window.SpeechSynthesisUtterance ? true : false;
   };
 
-  var getSpeechSynthesis = function(){
+  var getSpeechSynthesis = function () {
     return nativeSpeechSynthesisSupport() ? window.speechSynthesis : window.speechSynthesisPolyfill;
   };
 
-  var getSpeechSynthesisUtterance = function(){
+  var getSpeechSynthesisUtterance = function () {
     return nativeSpeechSynthesisSupport() ? window.SpeechSynthesisUtterance : window.SpeechSynthesisUtterancePolyfill;
   };
 
