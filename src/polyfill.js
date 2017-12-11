@@ -7,6 +7,7 @@
     'LANG' : 'en-US',
     'APIID' : <API_ID_HERE>,
     'APIPASS' : <API_PASSWD_HERE>,
+    'URLPREFIX' : <URL of cors-anywhere>
   };
   module.exports = tts_config;
 */
@@ -117,6 +118,7 @@ var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
     this.onload;
 
     this.src;
+    this.text;
     this.volume;
     this.playbackRate;
 
@@ -134,37 +136,40 @@ var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
           that.emit('error', error);
         }
 
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', that.src, true, tts_config.APIID, tts_config.APIPASS);
-        xhr.responseType = 'blob';
-        xhr.withCredentials = true;
-        xhr.setRequestHeader("Accept", "audio/ogg");
-        xhr.onload = function (e) {
-          if (this.status == 200) {
+        fetch(that.src, {
+          method: 'get',
+          // credentials: 'include',
+          headers: {
+            'Accept' : 'audio/ogg',
+            'Authorization': 'Basic ' + btoa(tts_config.APIID + ":" + tts_config.APIPASS)
+          }
+        }).then(function(response) {
+          if (response.status === 200) {
             // p5.SoundFile can accept blob sound data
-            that.soundFile = new p5.SoundFile(xhr.response, function () {
-              that.soundFile.onended(function () {
-                if (!that.soundFile.isPaused()) {
-                  that.emit('ended', that.soundFile);
-                  that.soundFile = null;
-                }
-              });
+            response.blob().then(function(blob) {
+              that.soundFile = new p5.SoundFile(blob, function () {
+                that.soundFile.onended(function () {
+                  if (!that.soundFile.isPaused()) {
+                    that.emit('ended', that.soundFile);
+                    that.soundFile = null;
+                  }
+                });
 
-              if (that.onload) {
-                that.onload();
-              }
-            }, function (error) {
+                if (that.onload) {
+                  that.onload();
+                }
+              }, function (error) {
+                _onerror(error);
+              })
+            }, function(error) {
               _onerror(error);
             });
-
           } else {
-            _onerror(this.status);
+            _onerror(response.status);            
           }
-        };
-
-        xhr.onerror = _onerror('XHR error');
-
-        xhr.send();
+        }, function(err) {
+            _onerror(error);
+        });
       } else {
         console.warn('Audio source not set.');
         that.emit('error', 'No src');
@@ -253,7 +258,7 @@ var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
     this.onboundary = undefined;
 
 
-    this.corsProxyServer = 'http://www.corsproxy.com/'; // is down!
+    this.corsProxyServer = tts_config.URLPREFIX || 'http://www.corsproxy.com/';
 
     /**
      * Private parts
@@ -275,11 +280,16 @@ var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
     };
 
     var getAudioUrl = function (corsProxyServer, text, lang, apikey) {
+      var prefix = tts_config.URLPREFIX ? tts_config.URLPREFIX : '';
+
       // return [corsProxyServer, 'translate.google.com/translate_tts?ie=UTF-8&q=', encodeURIComponent(text) , '&tl=', lang].join('');
       // VoiceRSS
       // return [protocol, '//api.voicerss.org/?key=', tts_config.APIKEY, '&c=WAV&f=16khz_16bit_mono&src=', encodeURIComponent(text), '&hl=', lang].join('');
       // Watson
-      return ['https:', '//stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fogg', '&host=', window.location.host, '&text=', encodeURIComponent(text)].join('');
+      // return [corsProxyServer, 'https:', '//', tts_config.APIID, ':', tts_config.APIPASS, '@', 'stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fogg', '&host=', window.location.host, '&text=', encodeURIComponent(text)].join('');
+      // return [corsProxyServer, 'https:', '//', tts_config.APIID, ':', tts_config.APIPASS, '@', 'stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fogg', '&text=', encodeURIComponent(text)].join('');
+      // return [corsProxyServer, 'https:', '//stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fogg', '&host=', window.location.host, '&text=', encodeURIComponent(text)].join('');
+      return [corsProxyServer, 'https:', '//stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fogg', '&text=', encodeURIComponent(text)].join('');
     };
 
     this._initAudio = function () {
@@ -354,7 +364,8 @@ var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
         sentences.push(that.text);
       }
 
-      var audioURL = getAudioUrl(that.corsProxyServer, sentences.shift(), that.lang);
+      audio.text = sentences.shift();
+      var audioURL = getAudioUrl(that.corsProxyServer, audio.text, that.lang);
       audio.src = audioURL;
       audio.volume = that.volume;
       audio.playbackRate = that.rate;
