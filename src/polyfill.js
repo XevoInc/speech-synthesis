@@ -258,7 +258,7 @@ var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
     this.onboundary = undefined;
 
 
-    this.corsProxyServer = tts_config.URLPREFIX || 'http://www.corsproxy.com/';
+    this.corsProxyServer = tts_config.URLPREFIX || '';
 
     /**
      * Private parts
