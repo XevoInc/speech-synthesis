@@ -140,7 +140,7 @@ var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
           method: 'get',
           // credentials: 'include',
           headers: {
-            'Accept' : 'audio/mp3',
+            'Accept' : 'audio/ogg',
             'Authorization': 'Basic ' + btoa(tts_config.APIID + ":" + tts_config.APIPASS)
           }
         }).then(function(response) {
@@ -289,7 +289,7 @@ var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
       // return [corsProxyServer, 'https:', '//', tts_config.APIID, ':', tts_config.APIPASS, '@', 'stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fmp3', '&host=', window.location.host, '&text=', encodeURIComponent(text)].join('');
       // return [corsProxyServer, 'https:', '//', tts_config.APIID, ':', tts_config.APIPASS, '@', 'stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fmp3', '&text=', encodeURIComponent(text)].join('');
       // return [corsProxyServer, 'https:', '//stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fmp3', '&host=', window.location.host, '&text=', encodeURIComponent(text)].join('');
-      return [corsProxyServer, 'https:', '//stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fmp3', '&text=', encodeURIComponent(text)].join('');
+      return [corsProxyServer, 'https:', '//stream.watsonplatform.net/text-to-speech/api/v1/synthesize?accept=audio%2Fogg', '&text=', encodeURIComponent(text)].join('');
     };
 
     this._initAudio = function () {

@@ -1,6 +1,6 @@
 {
   "name": "speech-synthesis",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Speech Synthesis polyfill",
   "keywords": [
     "speech",
