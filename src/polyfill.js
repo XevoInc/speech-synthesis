@@ -162,7 +162,7 @@ var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
           } else {
             _onerror(response.status);            
           }
-        }, function(err) {
+        }, function(error) {
             _onerror(error);
         });
       } else {
