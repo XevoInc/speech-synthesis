@@ -22,11 +22,6 @@ var tts_config = window.tts_config || {
   'LANG': 'en-US'
 };
 
-try {
-  tts_config = require('./private_config');
-} catch (e) {
-}
-
 var DEBUG = true;
 
 var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
@@ -532,6 +527,10 @@ var protocol = (location.protocol === 'https:') ? 'https:' : 'http:';
       'getVoices': function () {
         getVoices();
       },
+
+      'setConfig': function(config) {
+        tts_config = config || tts_config;
+      }
 
     };
   };
